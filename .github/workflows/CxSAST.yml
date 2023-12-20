@@ -1,0 +1,59 @@
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# This is a basic workflow to help you get started with Using Checkmarx CxFlow Action
+
+name: CxFlow Push and Schedule
+
+on:
+  push:
+    branches: [ "master" ]
+  schedule:
+    - cron: '45 18 * * 2'
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel - this job is specifically configured to use the Checkmarx CxFlow Action
+permissions:
+  contents: read
+
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on - Ubuntu is required as Docker is leveraged for the action
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      issues: write # for checkmarx-ts/checkmarx-cxflow-github-action to write feedback to github issues
+      pull-requests: write # for checkmarx-ts/checkmarx-cxflow-github-action to write feedback to PR
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+    runs-on: ubuntu-latest
+
+    # Steps require - checkout code, run CxFlow Action, Upload SARIF report (optional)
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v3
+    # Runs the Checkmarx Scan leveraging the latest version of CxFlow - REFER to Action README for list of inputs
+    - name: Checkmarx CxFlow Action
+      uses: checkmarx-ts/checkmarx-cxflow-github-action@v1.9
+      with:
+        project: api_test_with_cx_lagacy
+        team: /CxServer/SP/APAC
+        checkmarx_url: https://cxprivatecloud.checkmarx.net/
+        checkmarx_username: louisp
+        checkmarx_password: ${{ secrets.CHECKMARX_PASSWORD }}
+        checkmarx_client_secret: ${{ secrets.CHECKMARX_CLIENT_SECRET }}
+        preset: Checkmarx Default
+        scanners: sast
+        params: --logging.level.com.checkmarx.flow.service=debug --logging.level.com.checkmarx.flow.utils=debug --logging.level.com.checkmarx.flow.custom=debug --logging.level.com.checkmarx.sdk.service=debug --settings-override=true --codebash-url=https://cx-apac-se-louis-park.codebashing.com/ --namespace=${{ github.repository_owner }} --repo-name=${{ github.event.repository.name }} --branch=${{ github.ref }} --cx-flow.filter-severity --cx-flow.filter-category --checkmarx.disable-clubbing=true --repo-url=${{ github.event.repository.url }}
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: cx.sarif
+        path: |
+          ./cx.sarif
+    # Upload the Report for CodeQL/Security Alerts
+    - name: Upload SARIF file
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: cx.sarif
